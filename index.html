@@ -1,0 +1,324 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Colorado Oil Wells 1950-2015</title>
+    <meta name="viewport" content="initial-scale=1.0, user-scalable=no" />
+    <meta http-equiv="content-type" content="text/html; charset=UTF-8"/>
+    <link rel="stylesheet" href="http://libs.cartocdn.com/cartodb.js/v3/themes/css/cartodb.css" />
+	<link rel="stylesheet" href="http://code.jquery.com/mobile/1.4.5/jquery.mobile-1.4.5.min.css">
+	<script src="https://code.jquery.com/jquery-2.1.4.min.js"></script>
+	<script src="http://code.jquery.com/mobile/1.4.5/jquery.mobile-1.4.5.min.js"></script>
+	<script src="http://libs.cartocdn.com/cartodb.js/v3/cartodb.js"></script>
+	<!--[if lte IE 8]>
+        <link rel="stylesheet" href="http://libs.cartocdn.com/cartodb.js/v3/themes/css/cartodb.ie.css" />
+    <![endif]-->
+	
+    <style>
+		html, body, #map {
+			height: 100%;
+			padding: 0;
+			margin: 0;
+		}
+	  
+		#slider {
+			height: 70px;
+		}
+
+        #play {
+            float: left;
+            width: 50px;
+            height: 50px;
+            background-image: url(../../assets/images/play_50_50.png);
+            cursor: pointer;
+            margin: 10px 0 0 10px;
+        }
+
+        #info {
+			position: absolute;
+            background: rgba(255,255,255,0.9);
+            border-radius: 5px;
+            padding: 10px;
+            border: 1px solid #999;
+            width: 250px;
+			height: 65px;
+			top: 25px;
+		}
+		
+		#info div#title {
+			font-weight:bold;
+			text-align:center;
+		}
+		
+		#info div#year {
+			text-align:center;
+			margin: 5px 0 0 0;
+			font-size: 20px;
+		}
+		
+		#info div#instructions {
+			margin: 3px 0 0 0;
+			text-align:center;
+			font-size: 12px;
+		}
+    </style>
+	<script type="infowindow/html" id="infowindow_template">
+		<div class="cartodb-popup">
+			<a href="#close" class="cartodb-popup-close-button close">x</a>
+				<div class="cartodb-popup-content-wrapper">
+				<div class="cartodb-popup-content">
+					<h4>Well Name: </h4>
+					<p>{{content.data.well_name}}</p>
+					<h4>Spud Date: </h4>
+					<p>{{content.data.str_spud_date}}</p>
+					<h4>Estimated Retirement Year: </h4>
+					<p>{{content.data.retirement_year}}</p>
+				</div>
+			</div>
+			<div class="cartodb-popup-tip-container"></div>
+		</div>
+	</script>
+	
+	<style type="cartocss/html" id="choropleth">
+		#co_wells_1898_2015{
+		  marker-fill-opacity: 0.8;
+		  marker-line-color: #FFF;
+		  marker-line-width: 1;
+		  marker-line-opacity: 1;
+		  marker-width: 7px;
+		  marker-fill: #C1373C;
+		  marker-allow-overlap: true;
+		  marker-comp-op: color-burn;
+		}
+	</style>
+	
+	<script type="text/javascript">
+		
+		var playing = false;
+		
+		function addCursorInteraction(layer) {
+			
+			layer.bind('featureOver', function(e, latlng, pos, data, layer) {
+				$('#map').css('cursor', 'pointer');
+			});
+        
+			layer.bind('featureOut', function(e, layer) {
+				$('#map').css('cursor', 'auto');
+			});
+			
+			layer.bind('featureClick', function(e, layer) {
+				//console.log('here');
+				//playing = false;
+				//$('#play').css('background-image', 'url(../../assets/images/play_50_50.png)');
+			});
+		}
+	
+        window.onload = function () {
+			
+			var height = $(window).height() - 70;
+            $("#map").css('height', height + 'px');
+				
+			var table_name = "co_wells_1898_2015";
+			var cartoDBUserName = "coloradooilandgas";
+			var start_year = 1950;
+			var end_year = 2015;
+			$('input#slider').val(start_year);
+			$('input#slider').slider("refresh");
+			$(".ui-slider-input").hide();
+            $(".ui-slider-track").css('margin', '12px 50px 0 85px');
+			$(info).css( "right", "25px" );
+			
+			$("input#slider").slider({
+                theme: "a"
+            });
+			
+			var map = new L.Map('map', {
+                center: [39.115941, -105.763576]
+            });
+            
+            map.fitBounds([
+               [37.004128, -109.053447],
+               [41.016427, -102.015180]
+            ]);
+			
+			$( "input#slider" ).slider({
+			  stop: function( event, ui ) {
+				playing = false;
+				$('#play').css('background-image', 'url(../../assets/images/play_50_50.png)');
+				updateMap();
+			  }
+			});
+			
+			map.on('zoomend', function() {
+				playing = false;
+				$('#play').css('background-image', 'url(../../assets/images/play_50_50.png)');
+				/*
+				map.eachLayer(function (layer) {
+						//console.log(layer.layers[0].sub.infowindow);
+						layer.getSubLayer[0].clear();
+					}
+				});
+				*/
+			});
+			
+			$("#play").click(function () {
+                if ($('#play').css('background-image').indexOf('play') > -1) {
+                    $('#play').css('background-image', 'url(../../assets/images/pause_50_50.png)');
+					updateMap();
+					playing = true;
+                }
+                else {
+                    $('#play').css('background-image', 'url(../../assets/images/play_50_50.png)');
+					playing = false;
+                }
+            });
+			
+
+			var layer = L.tileLayer('https://api.tiles.mapbox.com/v4/{id}/{z}/{x}/{y}.png?access_token={accessToken}', {
+                id: 'willcarter.cigctwbwf0dqgt9kq4geyzag4',
+                accessToken: 'pk.eyJ1Ijoid2lsbGNhcnRlciIsImEiOiJjaWdjdHdkNzYwZGp3dTVtMGhhY2ZkaDloIn0.9qTtVfFnKXVe82B-6mJbqQ'
+            }).addTo(map);
+			
+			/*
+			var layer = L.tileLayer('http://{s}.tiles.mapbox.com/v3/MapID/{z}/{x}/{y}.png', {
+				id: 'willcarter.cigctwbwf0dqgt9kq4geyzag4',
+                accessToken: 'pk.eyJ1Ijoid2lsbGNhcnRlciIsImEiOiJjaWdjdHdkNzYwZGp3dTVtMGhhY2ZkaDloIn0.9qTtVfFnKXVe82B-6mJbqQ',
+				attribution: 'Map data &copy; <a href="http://openstreetmap.org">OpenStreetMap</a> contributors, <a href="http://creativecommons.org/licenses/by-sa/2.0/">CC-BY-SA</a>, Imagery ɠ<a href="http://mapbox.com">Mapbox</a>',
+				maxZoom: 18
+			}).addTo(map);
+			*/
+			
+			/*
+			var layer = L.tileLayer('http://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
+				attribution: 'Tiles &copy; Esri &mdash; Source: Esri, i-cubed, USDA, USGS, AEX, GeoEye, Getmapping, Aerogrid, IGN, IGP, UPR-EGP, and the GIS User Community'
+			}).addTo(map);
+			*/
+			
+			var sql = `
+			select
+			co_wells_1898_2015.cartodb_id, 
+			co_wells_1898_2015.the_geom_webmercator,
+			co_wells_1898_2015.operator,  
+			co_wells_1898_2015.the_geom, 
+			co_wells_1898_2015.well_name, 
+			co_wells_1898_2015.spud_date,
+			to_char(co_wells_1898_2015.spud_date, 'MM/DD/YYYY') as str_spud_date,
+			co_wells_1898_2015.year,
+			co_well_basin.the_geom as co_well_basin_the_geom,
+			co_well_basin.max,
+			co_well_basin.mean,
+			co_well_basin.median,
+			co_well_basin.min,
+			co_well_basin.mode,
+			co_well_basin.name,
+			co_well_basin.stdev,
+			co_well_basin.wellcount,
+			co_wells_1898_2015.year + co_well_basin.mean AS retirement_year
+			FROM co_wells_1898_2015, co_well_basin
+			WHERE ST_Within(co_wells_1898_2015.the_geom, co_well_basin.the_geom)
+			AND year <= the_year
+			AND (co_wells_1898_2015.year + co_well_basin.mean) >= the_year
+			`;
+			
+			var initial_sql = replaceAll(sql, 'the_year', start_year);
+			
+			cartodb.createLayer(map, {
+				user_name: cartoDBUserName,
+				type: 'cartodb',
+				sublayers: [{
+					sql: initial_sql,
+					cartocss: $("#choropleth").html(),
+					interactivity: 'cartodb_id'
+				}]
+			})
+            .addTo(map)
+            .done(function (layer) {
+				addCursorInteraction(layer);
+				layer.getSubLayer(0).setInteraction(true);
+		        cdb.vis.Vis.addInfowindow(map, layer.getSubLayer(0), ['cartodb_id', 'well_name', 'spud_date', 'year', 'str_spud_date', 'retirement_year'], {
+					 infowindowTemplate: $('#infowindow_template').text(),
+					 templateType: 'mustache',
+					 triggerEvent: 'featureClick',
+					 cursorInteraction: true
+				});
+			})
+            .error(function (err) { console.log("error: " + err); });
+			
+			function updateMap() {
+					
+				var year = parseInt($('input#slider').val());
+				
+				if(year == end_year)
+					playing = false;
+					
+				console.log('current year: ' + year);
+				
+				var year_sql = replaceAll(sql, 'the_year', year);
+				
+				cartodb.createLayer(map, {
+					user_name: cartoDBUserName,
+					type: 'cartodb',
+					sublayers: [{
+						sql: year_sql,
+						cartocss: $("#choropleth").html(),
+						interactivity: 'cartodb_id'
+					}]
+				})
+				.addTo(map)
+				.done(function (layer) {
+					layer.getSubLayer(0).setInteraction(true);
+					addCursorInteraction(layer);
+					cdb.vis.Vis.addInfowindow(map, layer.getSubLayer(0), ['cartodb_id', 'well_name', 'spud_date', 'year', 'str_spud_date', 'retirement_year'], {
+						 infowindowTemplate: $('#infowindow_template').text(),
+						 templateType: 'mustache',
+						 triggerEvent: 'featureClick',
+						 cursorInteraction: true
+					});
+					layer.on("load", function() {
+						//console.log("layer loaded:" + layer._leaflet_id);
+						$('#year').html(year);
+						if(playing) {
+							year = year + 1;
+							$('input#slider').val(year);
+							$('input#slider').slider("refresh");
+							setTimeout(function() {
+								updateMap();
+							}, 500)
+						}
+						removeAllLayersExcept(layer);
+					});
+				})
+				.error(function (err) { console.log("error: " + err); });
+			}
+			
+			function removeAllLayersExcept(new_layer) {
+				//console.log('new_layer._leaflet_id:' + new_layer._leaflet_id);
+				var layer_index = 0;
+                map.eachLayer(function (layer) {
+				    if (layer_index > 0 && layer._leaflet_id < new_layer._leaflet_id)
+					{
+						console.log('layer removed:' + layer._leaflet_id);
+						setTimeout(function () {
+							map.removeLayer(layer);
+						}, 500);// give a little time before removing previous tile layer because new one will appear with some transition.
+					}
+					layer_index++;
+                });
+			}
+			
+			function replaceAll(str, find, replace) {
+				return str.replace(new RegExp(find, 'g'), replace);
+			}
+		}
+    </script>
+</head>
+<body>
+	<div id="map"></div>
+    <div id="play"></div>
+    <div id='slider'><form><input type="range" name="slider" id="slider" min="1950" max="2015" value="1950" step="1"></form></div>
+	<div id="info">
+		<div id="title">Colorado Oil/Gas Wells</div>
+		<div id="year">1950</div>
+		<div id="instructions">Press play or slide to see wells over time</div>
+	</div>
+</body>
+</html>
